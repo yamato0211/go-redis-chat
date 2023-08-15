@@ -1,18 +1,28 @@
 package domain
 
+import (
+	"context"
+
+	"github.com/yamato0211/go-redis-chat/src/services"
+)
+
 type Hub struct {
 	Clients      map[*Client]bool
 	RegisterCh   chan *Client
 	UnRegisterCh chan *Client
 	BroadcastCh  chan []byte
+	pubsub       *services.PubSubService
 }
 
-func NewHub() *Hub {
+const broadCastChan = "broadcast"
+
+func NewHub(pubsub *services.PubSubService) *Hub {
 	return &Hub{
 		Clients:      make(map[*Client]bool),
 		RegisterCh:   make(chan *Client),
 		UnRegisterCh: make(chan *Client),
 		BroadcastCh:  make(chan []byte),
+		pubsub:       pubsub,
 	}
 }
 
@@ -24,9 +34,21 @@ func (h *Hub) RunLoop() {
 		case client := <-h.UnRegisterCh:
 			h.unregister(client)
 		case msg := <-h.BroadcastCh:
-			h.broadCastToAllClient(msg)
+			h.publishMessage(msg)
 		}
 	}
+}
+
+func (h *Hub) SubscribeMessage() {
+	ch := h.pubsub.Subscribe(context.TODO(), broadCastChan)
+
+	for msg := range ch {
+		h.broadCastToAllClient([]byte(msg.Payload))
+	}
+}
+
+func (h *Hub) publishMessage(msg []byte) {
+	h.pubsub.Publish(context.TODO(), broadCastChan, msg)
 }
 
 func (h *Hub) register(c *Client) {

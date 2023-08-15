@@ -7,10 +7,13 @@ import (
 
 	"github.com/yamato0211/go-redis-chat/src/domain"
 	"github.com/yamato0211/go-redis-chat/src/handler"
+	"github.com/yamato0211/go-redis-chat/src/services"
 )
 
 func main() {
-	hub := domain.NewHub()
+	pubsub := services.NewPubSubService()
+	hub := domain.NewHub(pubsub)
+	go hub.SubscribeMessage()
 	go hub.RunLoop()
 	http.HandleFunc("/ws", handler.NewWebSocketHandler(hub).Handle)
 	port := ":8080"
